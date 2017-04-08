@@ -1,0 +1,140 @@
+---
+
+- name: acme user present
+  user:
+    name: "{{ acme_user }}"
+    createhome: yes
+    shell: /bin/bash
+    comment: Let's encrypt
+    state: present
+
+- name: challenges dir present
+  file:
+    path: /home/acme/challenges
+    owner: "{{ acme_user }}"
+    group: "{{ www_group }}"
+    mode: 0750
+    state: directory
+
+- name: acme_tiny script present
+  get_url:
+    url: "{{ acme_tiny_url }}"
+    dest: "{{ acme_tiny_path }}"
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0700
+
+- name: account key present
+  stat: path={{ account_key }}
+  register: account_key_file
+
+- name: account key generated
+  command: openssl genrsa -out {{ account_key }} 4096
+  when: account_key_file.stat.exists == False
+
+- name: account key secure
+  file:
+    path: "{{ account_key }}"
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0400
+
+- name: acme intermediate cert present
+  get_url:
+    url: https://letsencrypt.org/certs/lets-encrypt-x3-cross-signed.pem.txt
+    dest: /home/acme/intermediate.crt
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0600
+
+- name: RSA private key present
+  stat: path={{ cert_privkey_rsa }}
+  register: cert_privkey_rsa_file
+
+- name: RSA private key generated
+  command: openssl genrsa -out {{ cert_privkey_rsa }} 2048
+  when: cert_privkey_rsa_file.stat.exists == False
+
+- name: RSA private key secure
+  file:
+    path: "{{ cert_privkey_rsa }}"
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0400
+
+- name: openssl config set
+  template: src=openssl.cnf.j2 dest={{ openssl_config }}
+  notify:
+    - regenerate csr
+
+- name: openssl config secure
+  file:
+    path: "{{ openssl_config }}"
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0600
+
+- name: RSA certificate request present
+  stat: path={{ cert_request_rsa }}
+  register: cert_request_rsa_file
+
+- name: RSA certificate request generated
+  command: >
+    openssl req -new -nodes -key {{ cert_privkey_rsa }}
+    -out {{ cert_request_rsa }} -config {{ openssl_config }}
+    -subj "/C={{ acme_countryName }}/ST={{ acme_stateOrProvinceName }}/L={{ acme_localityName }}/O={{ acme_organizationName }}/CN={{ acme_commonName }}"
+  when: cert_request_rsa_file.stat.exists == False
+
+- name: RSA certificate request secure
+  file:
+    path: "{{ cert_request_rsa }}"
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0600
+
+- name: copy renew script
+  copy:
+    src: renew.sh
+    dest: /home/acme/renew.sh
+    owner: "{{ acme_user }}"
+    group: "{{ acme_group }}"
+    mode: 0700
+
+- name: nginx snippets folder present
+  stat: path=/etc/nginx/snippets
+  register: nginx_snippets_folder
+
+- name: copy acme challenge snippet
+  copy:
+    src: acme_challenge
+    dest: /etc/nginx/snippets/acme_challenge
+  when: nginx_snippets_folder.stat.isdir == True
+
+- name: copy acme rsa snippet
+  copy:
+    src: acme_rsa
+    dest: /etc/nginx/snippets/acme_rsa
+  when: nginx_snippets_folder.stat.isdir == True
+
+- name: allow nginx restart with sudo
+  lineinfile:
+    dest: /etc/sudoers
+    regexp: "^{{ acme_user }}"
+    line: "{{ acme_user }}    ALL=NOPASSWD: /usr/sbin/service nginx *"
+    insertafter: "# User privilege specification"
+
+- name: renew cron set
+  cron:
+    name: Renew Let's Encrypt certificates each week
+    job: "/home/acme/renew.sh 2>> /var/log/acme_tiny.log"
+    user: "{{ acme_user }}"
+    minute: 0
+    hour: 1
+    weekday: 1
+
+- name: cron report mail is set
+  cronvar:
+    name: MAILTO
+    value: "{{ cron_report_mail }}"
+    user: "{{ acme_user }}"
+  when: cron_report_mail is defined

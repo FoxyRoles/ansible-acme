@@ -1,0 +1,7 @@
+---
+
+- name: regenerate csr
+  command: >
+    openssl req -new -nodes -key {{ cert_privkey_rsa }}
+    -out {{ cert_request_rsa }} -config {{ openssl_config }}
+    -subj "/C={{ acme_countryName }}/ST={{ acme_stateOrProvinceName }}/L={{ acme_localityName }}/O={{ acme_organizationName }}/CN={{ acme_commonName }}"

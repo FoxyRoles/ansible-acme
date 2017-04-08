@@ -1,0 +1,19 @@
+galaxy_info:
+  author: Tomas Jacik
+  description: Role for installing and configuring ACME script to issue Let's Encrypt certificates.
+  company: Sunfox s.r.o.
+  issue_tracker_url: https://github.com/sunfoxcz/ansible-acme/issues
+  license: MIT
+  min_ansible_version: 1.2
+
+  platforms:
+  - name: Ubuntu
+    versions:
+    - trusty
+    - xenial
+
+  galaxy_tags:
+  - certificate
+  - nginx
+  - ssl
+  - ubuntu

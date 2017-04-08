@@ -1,0 +1,16 @@
+---
+
+acme_user: acme
+acme_group: acme
+
+acme_tiny_url: https://raw.githubusercontent.com/diafygi/acme-tiny/master/acme_tiny.py
+acme_tiny_path: /home/acme/acme_tiny.py
+
+account_key: /home/acme/account.key
+
+openssl_config: /home/acme/openssl.cnf
+
+cert_request_rsa: /home/acme/rsa.csr
+cert_privkey_rsa: /home/acme/rsa.key
+
+www_group: www-data
